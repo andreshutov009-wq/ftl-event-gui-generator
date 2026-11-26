@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FTL Event GUI Generator – Vanilla &amp; Hyperspace</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title">FTL Event GUI Generator</span>
+      <span class="topbar-sub">Vanilla &amp; Hyperspace</span>
+    </div>
+    <div class="topbar-actions">
+      <input type="file" id="file-upload" accept="*/*" multiple style="display:none" onchange="handleFileUpload(event)" />
+      <button type="button" class="btn" onclick="document.getElementById('file-upload').click()">↑ XML / .append / .FTL laden</button>
+      <button type="button" class="btn" onclick="createNewEvent()">+ Neues Event</button>
+      <button type="button" class="btn" onclick="openWeaponConfigModal()">🔫 Waffen (<span id="weapon-count">0</span>)</button>
+      <button type="button" class="btn" onclick="openShipEditorModal()">🚀 Schiffe (<span id="ship-count">0</span>)</button>
+      <button type="button" class="btn" onclick="openSpriteManagerModal()">🖼️ Sprites (<span id="sprite-count">0</span>)</button>
+      <button type="button" class="btn" onclick="openFilesModal()">📁 Dateien (<span id="collection-count">0</span>)</button>
+
+      <!-- Export Dropdown mit seitlichem Sub-Dropdown -->
+      <div class="export-dropdown-wrap" id="export-dropdown-wrap" onclick="event.stopPropagation()">
+        <button type="button" class="btn btn-hs" id="export-main-btn" onclick="toggleExportMainMenu(event)">📤 Export ▾</button>
+        <div class="export-main-menu" id="export-main-menu">
+          <div class="export-menu-item" onmouseenter="activateExportSub(this)" onclick="toggleExportSub(event, this)">
+            <span>◀ ⚡ Vanilla Export</span>
+            <div class="export-sub-menu">
+              <div class="export-sub-header">Vanilla – Format wählen</div>
+              <div class="export-sub-item" onclick="runExportAction('vanilla', 'ftl-replace')">
+                <span>Basisspiel ersetzen (.ftl – normales .xml)</span>
+                <span class="export-sub-hint">data/events.xml &amp; data/blueprints.xml</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('vanilla', 'ftl-append')">
+                <span>Mod-Paket (.ftl – .xml.append)</span>
+                <span class="export-sub-hint">data/events.xml.append (Slipstream/FTLman)</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('vanilla', 'xml-normal')">
+                <span>Normales XML herunterladen (events.xml)</span>
+                <span class="export-sub-hint">Direkt für entpackten FTL-Ordner</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('vanilla', 'xml-append')">
+                <span>Append-XML herunterladen (events.xml.append)</span>
+                <span class="export-sub-hint">Patch-Datei für Mod-Manager</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="export-menu-item" onmouseenter="activateExportSub(this)" onclick="toggleExportSub(event, this)">
+            <span>◀ 🚀 Hyperspace Export</span>
+            <div class="export-sub-menu">
+              <div class="export-sub-header">Hyperspace – Format wählen</div>
+              <div class="export-sub-item" onclick="runExportAction('hyperspace', 'ftl-replace')">
+                <span>Basisspiel ersetzen (.ftl – normales .xml)</span>
+                <span class="export-sub-hint">data/events.xml &amp; data/blueprints.xml</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('hyperspace', 'ftl-append')">
+                <span>Mod-Paket (.ftl – .xml.append)</span>
+                <span class="export-sub-hint">data/events.xml.append + HS-Tags</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('hyperspace', 'xml-normal')">
+                <span>Normales XML herunterladen (events.xml)</span>
+                <span class="export-sub-hint">Direkt für entpackten FTL-Ordner</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('hyperspace', 'xml-append')">
+                <span>Append-XML herunterladen (events.xml.append)</span>
+                <span class="export-sub-hint">Patch-Datei für Mod-Manager</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="export-menu-item" onmouseenter="activateExportSub(this)" onclick="toggleExportSub(event, this)">
+            <span>◀ 📄 Einzeldateien (FTL-Ordner)</span>
+            <div class="export-sub-menu">
+              <div class="export-sub-header">Direkt in data/-Ordner legen</div>
+              <div class="export-sub-item" onclick="runExportAction('hyperspace', 'events-xml')">
+                <span>events.xml (normales XML)</span>
+                <span class="export-sub-hint">Ersetzt Basisspiel-Events</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('hyperspace', 'blueprints-xml')">
+                <span>blueprints.xml (Schiffe &amp; Waffen)</span>
+                <span class="export-sub-hint">Normales XML für Schiffe &amp; Waffen</span>
+              </div>
+              <div class="export-sub-item" onclick="runExportAction('hyperspace', 'animations-xml')">
+                <span>animations.xml (Crew-Sprites)</span>
+                <span class="export-sub-hint">Normales XML für Animationen</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kompakte Dropdown-Navigation für Mod & Event + Überschreiben-Button -->
+  <div class="nav-bar">
+    <div class="nav-group">
+      <span class="nav-label">Mod / Datei:</span>
+      <select id="nav-mod-select" class="nav-select" onchange="handleNavModChange(this.value)"></select>
+      <span class="nav-label">Event:</span>
+      <select id="nav-event-select" class="nav-select" onchange="handleNavEventChange(parseInt(this.value, 10))"></select>
+      <button type="button" id="override-toggle-btn" class="btn" onclick="toggleOverrideExisting()" title="Bestehendes Basisspiel-Event beim .xml.append-Patch gezielt überschreiben (mod:findName)">
+        🔁 Überschreiben: AUS
+      </button>
+      <button type="button" class="btn btn-danger" onclick="deleteCurrentEvent()" title="Aktuelles Event löschen">✕ Event</button>
+    </div>
+    <div class="nav-group">
+      <span id="import-status-badge" style="font-size:11px;color:#94a3b8;font-family:var(--font-mono);">Bereit</span>
+    </div>
+  </div>
+
+  <div id="editor-shell" class="ftl-window-outer">
+    <div id="ftl-inner" class="ftl-window-inner">
+      <!-- 3-Spalten-Header mit Dropdowns + Vorschlägen -->
+      <div class="ftl-header-grid">
+        <div class="combo-field">
+          <label for="event-name-input">Event-ID (Dropdown &amp; eigene ID)</label>
+          <div class="combo-wrap">
+            <input id="event-name-input" class="combo-input" type="text" placeholder="z. B. CUSTOM_EVENT_1"
+              oninput="handleEventNameInput(this); showComboSuggestions('eventIds', this.value)"
+              onfocus="showComboSuggestions('eventIds', '')"
+              onblur="setTimeout(() => hideSuggestions('eventIds'), 180)" />
+            <button type="button" class="combo-arrow" title="Vorschläge anzeigen"
+              onmousedown="event.preventDefault(); toggleComboSuggestions('eventIds')">▼</button>
+            <div id="sug-eventIds" class="suggestions-dropdown"></div>
+          </div>
+        </div>
+
+        <div class="combo-field">
+          <label for="event-sector-input">Sektor (Dropdown &amp; eigener Sektor)</label>
+          <div class="combo-wrap">
+            <input id="event-sector-input" class="combo-input sector-style" type="text" placeholder="z. B. CIVILIAN_SECTOR"
+              oninput="handleEventSectorInput(this); showComboSuggestions('sectors', this.value)"
+              onfocus="showComboSuggestions('sectors', '')"
+              onblur="setTimeout(() => hideSuggestions('sectors'), 180)" />
+            <button type="button" class="combo-arrow" title="Sektoren anzeigen"
+              onmousedown="event.preventDefault(); toggleComboSuggestions('sectors')">▼</button>
+            <div id="sug-sectors" class="suggestions-dropdown"></div>
+          </div>
+        </div>
+
+        <div class="combo-field">
+          <label for="quest-stage-input">Quest-Stufe / Ablauf-Typ (Dropdown &amp; Vorschläge)</label>
+          <div class="combo-wrap">
+            <input id="quest-stage-input" class="combo-input stage-style" type="text" placeholder="Stufe wählen oder eingeben..."
+              oninput="handleQuestStageInput(this); showComboSuggestions('questStages', this.value)"
+              onfocus="showComboSuggestions('questStages', '')"
+              onblur="setTimeout(() => hideSuggestions('questStages'), 180)" />
+            <button type="button" class="combo-arrow" title="Quest-Stufen anzeigen"
+              onmousedown="event.preventDefault(); toggleComboSuggestions('questStages')">▼</button>
+            <div id="sug-questStages" class="suggestions-dropdown"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kompakte Quest-Kette, falls mehrere Stufen vorhanden sind -->
+      <div id="quest-chain-strip" class="quest-chain-strip"></div>
+
+      <!-- Haupttext -->
+      <div class="section-block">
+        <div class="section-label">
+          <span>Haupttext (Situation)</span>
+          <span>Rechtsklick für weitere Aktionen</span>
+        </div>
+        <textarea id="main-event-text" class="ftl-main-textarea"
+          oninput="handleMainTextInput(this)"
+          oncontextmenu="openMainTextContextMenu(event)"
+          placeholder="Schreibe hier die Hauptbeschreibung des Events..."></textarea>
+      </div>
+
+      <!-- Auswahl-Optionen -->
+      <div class="section-block">
+        <div class="section-label">
+          <span>Auswahl-Optionen (anklicken zum Bearbeiten der Antwort, Rechtsklick für Belohnungen &amp; Konsequenzen)</span>
+          <button type="button" class="btn" onclick="openEffectsModalFor(activeChoiceIndex)">🎁 Belohnungen &amp; Konsequenzen (#<span id="active-choice-btn-num">1</span>)</button>
+        </div>
+        <div id="choices-container" class="ftl-choices-list"></div>
+        <div class="add-choice-bar">
+          <button type="button" class="btn" onclick="addNewChoice()">+ Auswahl-Option hinzufügen</button>
+        </div>
+      </div>
+
+      <!-- Ergebnis-/Antwort-Feld -->
+      <div id="outcome-box" class="section-block outcome-box">
+        <div class="outcome-box-header">
+          <span id="outcome-label">↳ Antwort / Ergebnis-Text für Option #1</span>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <button type="button" class="btn" onclick="openEffectsModalFor(activeChoiceIndex)">🎁 Belohnung / Konsequenz bearbeiten</button>
+            <button type="button" class="btn" onclick="swapMainAndOutcome()">⇅ Mit Haupttext tauschen</button>
+          </div>
+        </div>
+        <textarea id="inline-outcome-text" class="outcome-textarea"
+          oninput="handleOutcomeInput(this)"
+          placeholder="Schreibe hier die Antwort / Konsequenz, die erscheint, wenn der Spieler diese Option anklickt..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div id="lint-panel" class="lint-panel ok">
+    <div class="lint-title">
+      <span id="lint-status-text">✓ FTLman / Slipstream Check: Bereit</span>
+      <button type="button" class="btn" onclick="runSlipstreamLint(true)">Jetzt prüfen</button>
+    </div>
+    <ul id="lint-issues-list" class="lint-list" style="display:none;"></ul>
+  </div>
+
+  <div id="ctx-menu" class="ctx-menu" onclick="event.stopPropagation()"></div>
+
+  <!-- Belohnungs- und Konsequenzen-Menü Modal -->
+  <div id="effects-modal" class="modal-backdrop" onclick="closeModal('effects-modal')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <h3 id="effects-modal-title">Option #1 – Belohnungs- &amp; Konsequenzen-Menü</h3>
+        <button type="button" class="btn" onclick="closeModal('effects-modal')">✕ Schließen</button>
+      </div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Blue Option (System / Rasse)</label>
+          <input id="eff-req" type="text" placeholder="z. B. sensors, zoltan" oninput="updateEffectField('req', this.value); showModalSuggestions(this, 'reqs')" onfocus="showModalSuggestions(this, 'reqs')" />
+          <div id="sug-reqs" class="suggestions-dropdown"></div>
+          <div id="conf-req" class="confirm-tag"></div>
+        </div>
+        <div class="field-group">
+          <label>System-Level (reqLvl)</label>
+          <input id="eff-reqLvl" type="number" min="1" max="8" value="1" oninput="updateEffectField('reqLvl', parseInt(this.value, 10)||1)" />
+        </div>
+        <div class="field-group">
+          <label>Bedingung aus früherem Run-Schritt</label>
+          <input id="eff-condition" type="text" placeholder="z. B. auftrag_erledigt==1" oninput="updateEffectField('condition', this.value)" />
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Ressourcen-Modus</label>
+          <select id="eff-rewardMode" onchange="updateEffectField('rewardMode', this.value)">
+            <option value="custom">Eigene Werte</option>
+            <option value="auto">Standard-Reward</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Scrap (+ / -)</label>
+          <input id="eff-scrap" type="number" value="0" oninput="updateEffectField('scrap', parseInt(this.value, 10)||0)" />
+        </div>
+        <div class="field-group">
+          <label>Fuel (+ / -)</label>
+          <input id="eff-fuel" type="number" value="0" oninput="updateEffectField('fuel', parseInt(this.value, 10)||0)" />
+        </div>
+        <div class="field-group">
+          <label>Missiles (+ / -)</label>
+          <input id="eff-missiles" type="number" value="0" oninput="updateEffectField('missiles', parseInt(this.value, 10)||0)" />
+        </div>
+        <div class="field-group">
+          <label>Drones (Munition + / -)</label>
+          <input id="eff-drones" type="number" value="0" oninput="updateEffectField('drones', parseInt(this.value, 10)||0)" />
+        </div>
+        <div class="field-group">
+          <label>Hull (+Reparatur / -Schaden)</label>
+          <input id="eff-hull" type="number" value="0" oninput="updateEffectField('hull', parseInt(this.value, 10)||0)" />
+        </div>
+        <div class="field-group">
+          <label>Crew (+1 / -1)</label>
+          <input id="eff-crew" type="number" min="-1" max="1" value="0" oninput="updateEffectField('crew', parseInt(this.value, 10)||0)" />
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Waffe (&lt;weapon&gt;)</label>
+          <input id="eff-weapon" type="text" placeholder="z. B. FLAK_1" oninput="updateEffectField('weapon', this.value.toUpperCase()); showModalSuggestions(this, 'weapons')" onfocus="showModalSuggestions(this, 'weapons')" />
+          <div id="sug-weapons" class="suggestions-dropdown"></div>
+          <div id="conf-weapon" class="confirm-tag"></div>
+        </div>
+        <div class="field-group">
+          <label>Drone (&lt;drone&gt;)</label>
+          <input id="eff-drone" type="text" placeholder="z. B. COMBAT_1" oninput="updateEffectField('drone', this.value.toUpperCase()); showModalSuggestions(this, 'drones')" onfocus="showModalSuggestions(this, 'drones')" />
+          <div id="sug-drones" class="suggestions-dropdown"></div>
+          <div id="conf-drone" class="confirm-tag"></div>
+        </div>
+        <div class="field-group">
+          <label>Augment (&lt;augment&gt;)</label>
+          <input id="eff-augment" type="text" placeholder="z. B. SCRAP_COLLECTOR" oninput="updateEffectField('augment', this.value.toUpperCase()); showModalSuggestions(this, 'augments')" onfocus="showModalSuggestions(this, 'augments')" />
+          <div id="sug-augments" class="suggestions-dropdown"></div>
+          <div id="conf-augment" class="confirm-tag"></div>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Gegner-Schiff (&lt;ship load="..."&gt;)</label>
+          <input id="eff-ship" type="text" placeholder="z. B. REBEL_AUTO" oninput="updateEffectField('ship', this.value.toUpperCase()); showModalSuggestions(this, 'ships')" onfocus="showModalSuggestions(this, 'ships')" />
+          <div id="sug-ships" class="suggestions-dropdown"></div>
+        </div>
+        <div class="field-group">
+          <label>Nächste Quest-Stufe / Ziel (&lt;quest event="..."&gt;)</label>
+          <input id="eff-quest" type="text" placeholder="z. B. MY_QUEST_STEP_2" oninput="updateEffectField('quest', sanitizeID(this.value)); showModalSuggestions(this, 'eventIds')" onfocus="showModalSuggestions(this, 'eventIds')" />
+        </div>
+        <div class="field-group">
+          <label>Hyperspace Variable setzen (nur HS-Export)</label>
+          <input id="eff-hsVar" type="text" placeholder="Name=Wert (z. B. my_flag=1)" oninput="updateEffectField('hsVar', this.value)" />
+        </div>
+      </div>
+
+      <div class="achievement-box">
+        <div class="achievement-box-title">
+          <span>🏆 In-Game-Achievement, Achievement-Schiff &amp; Artwork</span>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <button type="button" class="btn" onclick="openSpriteManagerModal('achievement')">🖼️ Aus Bildverwaltung wählen</button>
+            <button type="button" class="btn" onclick="clearAchievementFields()">Achievement leeren</button>
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="field-group">
+            <label>Achievement-ID / Name</label>
+            <input id="eff-achId" type="text" placeholder="z. B. DRAGON_SLAYER_ACH"
+              oninput="updateEffectField('achId', sanitizeID(this.value)); showModalSuggestions(this, 'achievements')"
+              onfocus="showModalSuggestions(this, 'achievements')" />
+            <div id="sug-achievements" class="suggestions-dropdown"></div>
+            <div id="conf-achId" class="confirm-tag"></div>
+          </div>
+          <div class="field-group">
+            <label>Achievement-Schiff (Dropdown)</label>
+            <select id="eff-achShip" onchange="updateEffectField('achShip', this.value)">
+              <option value="">-- Kein Schiff gewählt --</option>
+            </select>
+            <div id="conf-achShip" class="confirm-tag"></div>
+          </div>
+          <div class="field-group">
+            <label>Auslöser</label>
+            <select id="eff-achTrigger" onchange="updateEffectField('achTrigger', this.value)">
+              <option value="choice">Bei Auswahl dieser Option</option>
+              <option value="event">Beim Auslösen des Ereignisses</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Auslöser-Text / Achievement-Text</label>
+          <textarea id="eff-achText" rows="2" placeholder="Text für das In-Game-Achievement eingeben..."
+            oninput="updateEffectField('achText', this.value)"></textarea>
+        </div>
+        <div class="artwork-row">
+          <input id="eff-achArtworkFile" type="file" accept="image/*" style="display:none" onchange="handleAchievementArtworkUpload(event)" />
+          <button type="button" class="btn" onclick="document.getElementById('eff-achArtworkFile').click()">🖼️ Artwork hochladen</button>
+          <img id="eff-achArtworkPreview" class="artwork-preview" alt="Achievement Artwork Vorschau" style="display:none;" />
+          <div style="flex:1;min-width:180px;">
+            <div id="eff-achArtworkName" style="font-size:11.5px;font-family:var(--font-mono);color:#cbd5e1;">Kein Artwork ausgewählt</div>
+            <div id="conf-achArtwork" class="confirm-tag"></div>
+          </div>
+          <button type="button" class="btn" onclick="removeAchievementArtwork()">✕ Bild entfernen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Waffen-Konfig-Menü Modal -->
+  <div id="weapon-modal" class="modal-backdrop" onclick="closeModal('weapon-modal')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <h3>🔫 Waffen-Konfig-Menü (Schaden, Feuerrate, Schüsse &amp; Verkaufswert)</h3>
+        <button type="button" class="btn" onclick="closeModal('weapon-modal')">✕ Schließen</button>
+      </div>
+
+      <div class="sprite-toolbar">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <select id="weapon-select" onchange="selectWeaponByIndex(parseInt(this.value, 10))"
+            style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:4px 7px;font-size:11.5px;font-family:var(--font-mono);min-width:180px;"></select>
+          <button type="button" class="btn btn-hs" onclick="createNewWeapon()">+ Neue Waffe</button>
+          <button type="button" class="btn btn-danger" onclick="deleteCurrentWeapon()">✕ Waffe löschen</button>
+        </div>
+        <div id="weapon-status-msg" style="font-size:11.5px;color:#cbd5e1;">Bereit</div>
+      </div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Waffen-ID (&lt;weaponBlueprint name="..."&gt;)</label>
+          <input id="wp-name-input" type="text" placeholder="z. B. CUSTOM_LASER_1"
+            oninput="updateCurrentWeaponField('name', sanitizeID(this.value)); this.value = sanitizeID(this.value);" />
+        </div>
+        <div class="field-group">
+          <label>Waffentyp (&lt;type&gt;)</label>
+          <select id="wp-type-input" onchange="updateCurrentWeaponField('type', this.value)">
+            <option value="LASER">LASER</option>
+            <option value="MISSILES">MISSILES</option>
+            <option value="BEAM">BEAM</option>
+            <option value="BOMB">BOMB</option>
+            <option value="BURST">BURST (Flak)</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label>Anzeige-Titel (&lt;title&gt;)</label>
+          <input id="wp-title-input" type="text" placeholder="z. B. Heavy Burst Laser"
+            oninput="updateCurrentWeaponField('title', this.value)" />
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Schaden pro Treffer (&lt;damage&gt;)</label>
+          <input id="wp-damage-input" type="number" min="0" max="50" value="1"
+            oninput="updateCurrentWeaponField('damage', parseInt(this.value, 10) || 0)" />
+        </div>
+        <div class="field-group">
+          <label>Schüsse pro Salve (&lt;shots&gt;)</label>
+          <input id="wp-shots-input" type="number" min="1" max="20" value="2"
+            oninput="updateCurrentWeaponField('shots', Math.max(1, parseInt(this.value, 10) || 1))" />
+        </div>
+        <div class="field-group">
+          <label>Cooldown / Schussfolge in Sek. (&lt;cooldown&gt;)</label>
+          <input id="wp-cooldown-input" type="number" step="0.5" min="1" max="60" value="11"
+            oninput="updateCurrentWeaponField('cooldown', parseFloat(this.value) || 10)" />
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Shop-Kaufpreis in Scrap (&lt;cost&gt;)</label>
+          <input id="wp-cost-input" type="number" min="0" max="500" value="50"
+            oninput="updateCurrentWeaponField('cost', Math.max(0, parseInt(this.value, 10) || 0))" />
+        </div>
+        <div class="field-group">
+          <label>Verkaufswert im Spiel (50 % von &lt;cost&gt;)</label>
+          <input id="wp-sell-preview" type="text" readonly value="25 Scrap"
+            style="background:#090d16;color:var(--ftl-yellow);border-color:#334155;" />
+        </div>
+        <div class="field-group">
+          <label>Energiebedarf (&lt;power&gt;) &amp; Munition (&lt;missiles&gt;)</label>
+          <div style="display:flex;gap:6px;">
+            <input id="wp-power-input" type="number" min="1" max="8" value="2" title="Power" style="width:50%;"
+              oninput="updateCurrentWeaponField('power', Math.max(1, parseInt(this.value, 10) || 1))" />
+            <input id="wp-missiles-input" type="number" min="0" max="10" value="0" title="Munitionsverbrauch" style="width:50%;"
+              oninput="updateCurrentWeaponField('missiles', Math.max(0, parseInt(this.value, 10) || 0))" />
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field-group">
+          <label>Beschreibung (&lt;desc&gt;)</label>
+          <input id="wp-desc-input" type="text" placeholder="Beschreibung der Waffe im Hangar/Shop..."
+            oninput="updateCurrentWeaponField('desc', this.value)" />
+        </div>
+        <div class="field-group">
+          <label>Waffen-Animation / Sprite (&lt;weaponArt&gt;)</label>
+          <input id="wp-art-input" type="text" placeholder="z. B. laser_burst_1"
+            oninput="updateCurrentWeaponField('weaponArt', this.value.trim())" />
+        </div>
+      </div>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+        <button type="button" class="btn btn-vanilla" onclick="applyWeaponToCurrentEventChoice()">↳ In aktive Event-Option übernehmen</button>
+        <button type="button" class="btn" onclick="applyWeaponToCurrentShip()">🚀 Auf aktuelles Schiff montieren</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schiff-Editor Modal -->
+  <div id="ship-modal" class="modal-backdrop" onclick="closeModal('ship-modal')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <h3>🚀 Schiff-Editor (Waffen, Crew, Quest-Freischaltung &amp; Download)</h3>
+        <button type="button" class="btn" onclick="closeModal('ship-modal')">✕ Schließen</button>
+      </div>
+
+      <div class="sprite-toolbar">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <input type="file" id="ship-xml-upload" accept="*/*" multiple style="display:none" onchange="handleShipXmlUpload(event)" />
+          <button type="button" class="btn" onclick="document.getElementById('ship-xml-upload').click()">↑ Schiff-XML / .append laden</button>
+          <button type="button" class="btn btn-vanilla" onclick="downloadCurrentShipXML()">↓ Aktuelles Schiff (.xml)</button>
+          <button type="button" class="btn btn-vanilla" onclick="downloadAllShipsXML()">↓ Alle Schiffe (.xml)</button>
+          <select id="ship-select" onchange="selectShipByIndex(parseInt(this.value, 10))"
+            style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:4px 7px;font-size:11.5px;font-family:var(--font-mono);min-width:180px;"></select>
+          <button type="button" class="btn btn-hs" onclick="createNewShip()">+ Neues Schiff</button>
+          <button type="button" class="btn btn-danger" onclick="deleteCurrentShip()">✕ Löschen</button>
+        </div>
+        <div id="ship-status-msg" style="font-size:11.5px;color:#cbd5e1;">Bereit</div>
+      </div>
+
+      <div id="ship-editor-body">
+        <div class="grid-3">
+          <div class="field-group">
+            <label>Schiffs-Blueprint-ID (&lt;shipBlueprint name="..."&gt;)</label>
+            <input id="ship-name-input" type="text" placeholder="z. B. KESTRAL"
+              oninput="updateCurrentShipField('name', sanitizeID(this.value)); this.value = sanitizeID(this.value);" />
+          </div>
+          <div class="field-group">
+            <label>Layout-Name (SL2 / FTL)</label>
+            <input id="ship-layout-input" type="text" placeholder="z. B. kestral"
+              oninput="updateCurrentShipField('layout', this.value.trim())" />
+          </div>
+          <div class="field-group">
+            <label>Sprite / Grafik (img)</label>
+            <input id="ship-img-input" type="text" placeholder="z. B. kestral"
+              oninput="updateCurrentShipField('img', this.value.trim())" />
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="field-group">
+            <label>Rumpf (Hull)</label>
+            <input id="ship-hull-input" type="number" min="1" max="99" value="30"
+              oninput="updateCurrentShipField('hull', parseInt(this.value, 10) || 1)" />
+          </div>
+          <div class="field-group">
+            <label>Waffen-Slots (weaponSlots)</label>
+            <input id="ship-wslots-input" type="number" min="0" max="8" value="4"
+              oninput="updateCurrentShipField('weaponSlots', parseInt(this.value, 10) || 0)" />
+          </div>
+          <div class="field-group">
+            <label>Quest-Freischaltung (&lt;unlock&gt; / Quest-Event)</label>
+            <input id="ship-unlock-input" type="text" placeholder="z. B. QUEST_UNLOCK_SHIP"
+              oninput="updateCurrentShipField('unlockQuest', sanitizeID(this.value)); this.value = sanitizeID(this.value);" />
+          </div>
+        </div>
+
+        <div class="ship-subbox">
+          <div class="ship-subbox-title">
+            <span>🔫 Waffen auf dem Schiff (&lt;weapon&gt;)</span>
+            <button type="button" class="btn" onclick="addShipWeapon()">+ Waffe hinzufügen</button>
+          </div>
+          <div id="ship-weapons-list"></div>
+        </div>
+
+        <div class="ship-subbox">
+          <div class="ship-subbox-title">
+            <span>👨‍🚀 Crew / Besatzung (&lt;crewCount&gt;)</span>
+            <button type="button" class="btn" onclick="addShipCrew()">+ Crew-Gruppe hinzufügen</button>
+          </div>
+          <div id="ship-crew-list"></div>
+        </div>
+
+        <div class="ship-subbox">
+          <div class="ship-subbox-title">
+            <span>🔓 Quest-Freischaltung &amp; Event-Verknüpfung</span>
+          </div>
+          <div class="grid-2" style="margin-bottom:0;">
+            <div class="field-group">
+              <label>Freischalt-Hinweis / Quest-Text</label>
+              <input id="ship-unlock-text-input" type="text" placeholder="z. B. Schalte dieses Schiff über eine Quest frei..."
+                oninput="updateCurrentShipField('unlockNote', this.value)" />
+            </div>
+            <div class="field-group">
+              <label>Aktives Event verknüpfen</label>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                <button type="button" class="btn" onclick="linkCurrentEventToShipUnlock()">↳ Aus aktuellem Event übernehmen</button>
+                <button type="button" class="btn" onclick="applyShipToCurrentEventChoice()">⚔️ Als Gegner-Schiff setzen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sprite- & Crew-Sprite-Sheet-Verwaltung -->
+  <div id="sprites-modal" class="modal-backdrop" onclick="closeModal('sprites-modal')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <h3>🖼️ Bild-, Waffen- &amp; Crew-Sprite-Sheet-Verwaltung</h3>
+        <button type="button" class="btn" onclick="closeModal('sprites-modal')">✕ Schließen</button>
+      </div>
+
+      <div class="sprite-toolbar">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <input type="file" id="sprite-archive-upload" accept=".zip,.ftl,image/*" multiple style="display:none" onchange="handleSpriteArchiveUpload(event)" />
+          <button type="button" class="btn btn-hs" onclick="document.getElementById('sprite-archive-upload').click()">↑ .ZIP / .FTL / Sprite-Sheets laden</button>
+          <select id="sprite-filter-category" onchange="renderSpriteGrid()" style="background:#1e293b;color:#f8fafc;border:1px solid #475569;border-radius:4px;padding:4px 7px;font-size:11.5px;font-family:var(--font-mono);">
+            <option value="">Alle Kategorien</option>
+          </select>
+        </div>
+        <div id="sprite-status-msg" style="font-size:11.5px;color:#cbd5e1;">Crew-Sprite-Sheets erzeugen automatisch Lauf-Animationen in data/animations.xml(.append)</div>
+      </div>
+
+      <div id="sprite-grid" class="sprite-grid"></div>
+    </div>
+  </div>
+
+  <!-- Dateien & XML Modal -->
+  <div id="files-modal" class="modal-backdrop" onclick="closeModal('files-modal')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-top">
+        <h3>📁 Geladene Dateien, Events &amp; XML-Vorschau</h3>
+        <button type="button" class="btn" onclick="closeModal('files-modal')">✕ Schließen</button>
+      </div>
+
+      <div class="section-label"><span>Geladene Mods / Quellen (einzeln löschbar)</span></div>
+      <div id="sources-list" class="source-list"></div>
+
+      <div class="section-label"><span>Einzelne Events verwalten</span></div>
+      <div id="events-manage-list" class="source-list"></div>
+
+      <div class="grid-3">
+        <div class="field-group">
+          <label>Mod-Titel (für FTL Manager)</label>
+          <input id="mod-title" type="text" value="Custom FTL Events Mod" />
+        </div>
+        <div class="field-group">
+          <label>Autor</label>
+          <input id="mod-author" type="text" value="FTL Modder" />
+        </div>
+        <div class="field-group">
+          <label>Version</label>
+          <input id="mod-version" type="text" value="1.0" />
+        </div>
+      </div>
+      <div class="field-group" style="margin-bottom:10px;">
+        <label>Mod-Beschreibung (mod-appendix/metadata.xml)</label>
+        <textarea id="mod-desc" rows="2">Created with FTL Event GUI Generator.</textarea>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:5px;">
+        <strong style="font-size:12.5px;color:var(--ftl-yellow);">Generiertes XML (events.xml / events.xml.append)</strong>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-vanilla" onclick="downloadXMLFile('vanilla', false)">↓ Vanilla events.xml</button>
+          <button type="button" class="btn btn-vanilla" onclick="downloadXMLFile('vanilla', true)">↓ Vanilla .append</button>
+          <button type="button" class="btn btn-hs" onclick="downloadXMLFile('hyperspace', false)">↓ HS events.xml</button>
+          <button type="button" class="btn btn-hs" onclick="downloadXMLFile('hyperspace', true)">↓ HS .append</button>
+          <button type="button" class="btn" onclick="copyXMLToClipboard('hyperspace')">📋 XML kopieren</button>
+        </div>
+      </div>
+      <pre id="xml-preview-box" class="xml-box"></pre>
+    </div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
